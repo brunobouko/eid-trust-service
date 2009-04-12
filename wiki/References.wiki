@@ -1,0 +1,5 @@
+#summary References
+
+= References =
+
+  * [http://www.w3.org/TR/xkms2/ XKMS2]
