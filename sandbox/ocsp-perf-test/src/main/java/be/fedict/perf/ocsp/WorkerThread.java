@@ -48,12 +48,8 @@ public class WorkerThread extends Thread {
 	public void run() {
 		try {
 			while (true) {
-				OCSPReqGenerator ocspReqGenerator = new OCSPReqGenerator();
-				CertificateID certificateId = this.certificateRepository
-						.getCertificateID();
-				ocspReqGenerator.addRequest(certificateId);
-				OCSPReq ocspReq = ocspReqGenerator.generate();
-				byte[] ocspReqData = ocspReq.getEncoded();
+				byte[] ocspReqData = this.certificateRepository
+						.getOCSPRequest();
 
 				HttpPost httpPost = new HttpPost("http://ocsp.eid.belgium.be");
 				HttpEntity httpEntity = new ByteArrayEntity(ocspReqData);
