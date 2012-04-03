@@ -25,11 +25,11 @@ public class CertificateRepositoryTest {
 	@Test
 	public void testLoadCertificateRepository() throws Exception {
 		// operate
-		CertificateRepository certificateRepository = new CertificateRepository();
+		CertificateRepository certificateRepository = new CertificateRepository(false);
 
 		// verify
 		LOG.debug("number of certificates in repository: "
 				+ certificateRepository.getSize());
-		assertTrue(certificateRepository.getSize() > 2);
+		assertTrue(certificateRepository.getSize() > 1000);
 	}
 }

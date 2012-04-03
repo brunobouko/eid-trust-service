@@ -6,6 +6,7 @@ import java.math.BigInteger;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -20,18 +21,17 @@ import org.bouncycastle.ocsp.OCSPReqGenerator;
 
 public class CertificateRepository {
 
-	private final List<CertificateID> certificateIds;
-
-	private Iterator<CertificateID> certificateIditerator;
-
 	private final List<byte[]> ocspRequests;
 
 	private Iterator<byte[]> ocspRequestIterator;
 
-	public CertificateRepository() throws CertificateException, OCSPException,
-			IOException {
-		this.certificateIds = new LinkedList<CertificateID>();
+	private final byte[] ocspRequest;
+
+	public CertificateRepository(boolean sameSerialNumber)
+			throws CertificateException, OCSPException, IOException {
 		this.ocspRequests = new LinkedList<byte[]>();
+
+		System.out.println("Loading certificate repository...");
 
 		InputStream certificatesConfigInputStream = CertificateRepository.class
 				.getResourceAsStream("/be/fedict/perf/ocsp/certificates.config");
@@ -44,8 +44,11 @@ public class CertificateRepository {
 				.getInstance("X.509");
 
 		Scanner scanner = new Scanner(certificatesConfigInputStream);
-		scanner.useDelimiter("\t|\n");
+		scanner.useDelimiter(",|\n");
 		while (scanner.hasNextLine()) {
+			String serialNumberStr = scanner.next();
+			BigInteger certificateSerialNumber = new BigInteger(
+					serialNumberStr, 16);
 			String caAlias = scanner.next();
 			X509Certificate caCertificate = caCertificates.get(caAlias);
 			if (null == caCertificate) {
@@ -61,11 +64,9 @@ public class CertificateRepository {
 				caCertificates.put(caAlias, caCertificate);
 			}
 
-			BigInteger certificateSerialNumber = scanner.nextBigInteger();
 			CertificateID certificateID = new CertificateID(
 					CertificateID.HASH_SHA1, caCertificate,
 					certificateSerialNumber);
-			this.certificateIds.add(certificateID);
 
 			OCSPReqGenerator ocspReqGenerator = new OCSPReqGenerator();
 			ocspReqGenerator.addRequest(certificateID);
@@ -74,23 +75,27 @@ public class CertificateRepository {
 			this.ocspRequests.add(ocspReqData);
 		}
 
-		if (this.certificateIds.isEmpty()) {
-			throw new RuntimeException(
-					"missing certificate entries in certificates.config");
+		if (this.ocspRequests.isEmpty()) {
+			throw new RuntimeException("missing entries in certificates.config");
 		}
 
-		this.certificateIditerator = this.certificateIds.iterator();
+		System.out.println("Shuffling repository...");
+		Collections.shuffle(this.ocspRequests);
+
 		this.ocspRequestIterator = this.ocspRequests.iterator();
-	}
 
-	public synchronized CertificateID getCertificateID() {
-		if (false == this.certificateIditerator.hasNext()) {
-			this.certificateIditerator = this.certificateIds.iterator();
+		if (sameSerialNumber) {
+			this.ocspRequest = this.ocspRequestIterator.next();
+		} else {
+			this.ocspRequest = null;
 		}
-		return this.certificateIditerator.next();
 	}
 
 	public synchronized byte[] getOCSPRequest() {
+		if (null != this.ocspRequest) {
+			// always use the same in the case of sameSerialNumber
+			return this.ocspRequest;
+		}
 		if (false == this.ocspRequestIterator.hasNext()) {
 			this.ocspRequestIterator = this.ocspRequests.iterator();
 		}
@@ -98,6 +103,6 @@ public class CertificateRepository {
 	}
 
 	public int getSize() {
-		return this.certificateIds.size();
+		return this.ocspRequests.size();
 	}
 }

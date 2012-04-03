@@ -14,9 +14,6 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.bouncycastle.asn1.ocsp.OCSPResponseStatus;
 import org.bouncycastle.ocsp.BasicOCSPResp;
-import org.bouncycastle.ocsp.CertificateID;
-import org.bouncycastle.ocsp.OCSPReq;
-import org.bouncycastle.ocsp.OCSPReqGenerator;
 import org.bouncycastle.ocsp.OCSPResp;
 
 public class WorkerThread extends Thread {
@@ -29,9 +26,10 @@ public class WorkerThread extends Thread {
 
 	private final HttpClient httpClient;
 
-	public WorkerThread(ManagerTimerTask manager,
+	public WorkerThread(int workerIdx, ManagerTimerTask manager,
 			CertificateRepository certificateRepository,
 			NetworkConfig networkConfig) {
+		super("worker-thread-" + workerIdx);
 		this.manager = manager;
 		this.certificateRepository = certificateRepository;
 		this.networkConfig = networkConfig;
@@ -74,8 +72,8 @@ public class WorkerThread extends Thread {
 					throw new RuntimeException("invalid OCSP response status: "
 							+ ocspRespStatus);
 				}
-				BasicOCSPResp basicOCSPResp = (BasicOCSPResp) ocspResp
-						.getResponseObject();
+				// BasicOCSPResp basicOCSPResp = (BasicOCSPResp) ocspResp
+				// .getResponseObject();
 
 				this.manager.reportWork(t1 - t0);
 			}

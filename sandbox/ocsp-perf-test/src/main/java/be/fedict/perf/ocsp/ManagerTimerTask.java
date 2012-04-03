@@ -51,8 +51,8 @@ public class ManagerTimerTask extends TimerTask {
 
 		if (this.currentRequestCount < this.requestsPerSecond) {
 			if (this.workerCount < this.maxWorkers) {
-				WorkerThread workerThread = new WorkerThread(this,
-						this.certificateRepository, this.networkConfig);
+				WorkerThread workerThread = new WorkerThread(this.workerCount,
+						this, this.certificateRepository, this.networkConfig);
 				workerThread.start();
 				this.workerCount++;
 			}
