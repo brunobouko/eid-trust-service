@@ -64,8 +64,6 @@ public class ManagerTimerTask extends TimerTask {
 	}
 
 	public synchronized void reportWork(long millis) {
-		this.currentRequestCount++;
-		this.currentRequestMillis += millis;
 		if (this.currentRequestCount >= this.requestsPerSecond) {
 			try {
 				wait();
@@ -73,5 +71,7 @@ public class ManagerTimerTask extends TimerTask {
 				throw new RuntimeException("wait error: " + e.getMessage(), e);
 			}
 		}
+		this.currentRequestCount++;
+		this.currentRequestMillis += millis;
 	}
 }
