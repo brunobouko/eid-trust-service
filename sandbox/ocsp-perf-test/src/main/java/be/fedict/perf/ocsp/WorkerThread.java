@@ -1,5 +1,6 @@
 package be.fedict.perf.ocsp;
 
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 
 import org.apache.http.HttpEntity;
@@ -26,12 +27,21 @@ public class WorkerThread extends Thread {
 
 	private final NetworkConfig networkConfig;
 
+	private final HttpClient httpClient;
+
 	public WorkerThread(ManagerTimerTask manager,
 			CertificateRepository certificateRepository,
 			NetworkConfig networkConfig) {
 		this.manager = manager;
 		this.certificateRepository = certificateRepository;
 		this.networkConfig = networkConfig;
+		this.httpClient = new DefaultHttpClient();
+		if (null != this.networkConfig) {
+			HttpHost proxy = new HttpHost(this.networkConfig.getProxyHost(),
+					this.networkConfig.getProxyPort());
+			this.httpClient.getParams().setParameter(
+					ConnRoutePNames.DEFAULT_PROXY, proxy);
+		}
 	}
 
 	@Override
@@ -44,20 +54,13 @@ public class WorkerThread extends Thread {
 				ocspReqGenerator.addRequest(certificateId);
 				OCSPReq ocspReq = ocspReqGenerator.generate();
 				byte[] ocspReqData = ocspReq.getEncoded();
-				HttpClient httpClient = new DefaultHttpClient();
-				if (null != this.networkConfig) {
-					HttpHost proxy = new HttpHost(
-							this.networkConfig.getProxyHost(),
-							this.networkConfig.getProxyPort());
-					httpClient.getParams().setParameter(
-							ConnRoutePNames.DEFAULT_PROXY, proxy);
-				}
+
 				HttpPost httpPost = new HttpPost("http://ocsp.eid.belgium.be");
 				HttpEntity httpEntity = new ByteArrayEntity(ocspReqData);
 				httpPost.setEntity(httpEntity);
 
 				long t0 = System.currentTimeMillis();
-				HttpResponse httpResponse = httpClient.execute(httpPost);
+				HttpResponse httpResponse = this.httpClient.execute(httpPost);
 				long t1 = System.currentTimeMillis();
 
 				StatusLine statusLine = httpResponse.getStatusLine();
@@ -66,8 +69,10 @@ public class WorkerThread extends Thread {
 					throw new RuntimeException(
 							"invalid OCSP HTTP status code: " + statusCode);
 				}
-				OCSPResp ocspResp = new OCSPResp(httpResponse.getEntity()
-						.getContent());
+				InputStream contentInputStream = httpResponse.getEntity()
+						.getContent();
+				OCSPResp ocspResp = new OCSPResp(contentInputStream);
+				contentInputStream.close();
 				int ocspRespStatus = ocspResp.getStatus();
 				if (OCSPResponseStatus.SUCCESSFUL != ocspRespStatus) {
 					throw new RuntimeException("invalid OCSP response status: "
