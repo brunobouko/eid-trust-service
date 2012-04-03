@@ -32,6 +32,10 @@
 			<artifactId>httpclient</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>pircbot</groupId>
+			<artifactId>pircbot</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<scope>test</scope>
@@ -105,6 +109,11 @@
 				<artifactId>httpclient</artifactId>
 				<version>4.1.3</version>
 				<scope>compile</scope>
+			</dependency>
+			<dependency>
+				<groupId>pircbot</groupId>
+				<artifactId>pircbot</artifactId>
+				<version>1.5.0</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
