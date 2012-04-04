@@ -31,7 +31,6 @@ import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.bouncycastle.asn1.ocsp.OCSPResponseStatus;
-import org.bouncycastle.ocsp.BasicOCSPResp;
 import org.bouncycastle.ocsp.OCSPResp;
 
 public class WorkerThread extends Thread {
@@ -44,10 +43,11 @@ public class WorkerThread extends Thread {
 
 	private final HttpClient httpClient;
 
-	public WorkerThread(int workerIdx, ManagerTimerTask manager,
+	public WorkerThread(ThreadGroup threadGroup, int workerIdx,
+			ManagerTimerTask manager,
 			CertificateRepository certificateRepository,
 			NetworkConfig networkConfig) {
-		super("worker-thread-" + workerIdx);
+		super(threadGroup, "worker-thread-" + workerIdx);
 		this.manager = manager;
 		this.certificateRepository = certificateRepository;
 		this.networkConfig = networkConfig;
@@ -63,7 +63,8 @@ public class WorkerThread extends Thread {
 	@Override
 	public void run() {
 		try {
-			while (true) {
+			boolean running = true;
+			while (running) {
 				byte[] ocspReqData = this.certificateRepository
 						.getOCSPRequest();
 
@@ -93,8 +94,9 @@ public class WorkerThread extends Thread {
 				// BasicOCSPResp basicOCSPResp = (BasicOCSPResp) ocspResp
 				// .getResponseObject();
 
-				this.manager.reportWork(t1 - t0);
+				running = this.manager.reportWork(t1 - t0);
 			}
+			System.out.println("Worker thread terminating: " + this.getName());
 		} catch (Exception e) {
 			System.err.println("worker error: " + e.getMessage());
 			throw new RuntimeException("worker error: " + e.getMessage(), e);

@@ -26,7 +26,7 @@ import java.util.Timer;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-public class Main {
+public class Main implements WorkListener {
 
 	private static final String IRC_SERVER = "irc.freenode.net";
 
@@ -175,6 +175,7 @@ public class Main {
 		ManagerTimerTask managerTimerTask = new ManagerTimerTask(
 				requestsPerSecond, maxWorkers, totalTimeMillis,
 				certificateRepository, networkConfig);
+		managerTimerTask.addWorkListener(this);
 		timer.scheduleAtFixedRate(managerTimerTask, new Date(), 1000);
 	}
 
@@ -190,5 +191,11 @@ public class Main {
 
 	public static void main(String[] args) throws Exception {
 		new Main(args);
+	}
+
+	@Override
+	public void done() {
+		System.out.println("All done.");
+		System.exit(0);
 	}
 }

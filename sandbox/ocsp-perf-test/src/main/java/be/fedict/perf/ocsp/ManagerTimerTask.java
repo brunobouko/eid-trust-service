@@ -18,6 +18,8 @@
 
 package be.fedict.perf.ocsp;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.TimerTask;
 
 public class ManagerTimerTask extends TimerTask {
@@ -38,6 +40,16 @@ public class ManagerTimerTask extends TimerTask {
 
 	private final NetworkConfig networkConfig;
 
+	private ThreadGroup workerThreadGroup;
+
+	private List<WorkerThread> workerThreads;
+
+	private boolean running;
+
+	private List<WorkListener> workListeners;
+
+	private int intervalCounter;
+
 	public ManagerTimerTask(int requestsPerSecond, int maxWorkers,
 			long totalTimeMillis, CertificateRepository certificateRepository,
 			NetworkConfig networkConfig) {
@@ -47,31 +59,68 @@ public class ManagerTimerTask extends TimerTask {
 		this.endTimeMillis = beginTimeMillis + totalTimeMillis;
 		this.certificateRepository = certificateRepository;
 		this.networkConfig = networkConfig;
-		System.out.println("WORKER COUNT, REQUEST COUNT, AVERAGE DT");
-		System.out.println("---------------------------------------");
+		System.out.println("INTERVAL, WORKER COUNT, REQUEST COUNT, AVERAGE DT");
+		System.out.println("-------------------------------------------------");
+		this.workerThreads = new LinkedList<WorkerThread>();
+		this.running = true;
+		this.workListeners = new LinkedList<WorkListener>();
+		this.workerThreadGroup = new ThreadGroup("worker-thread-group");
+	}
+
+	public void addWorkListener(WorkListener workListener) {
+		this.workListeners.add(workListener);
+	}
+
+	private void notifyWorkListenersDone() {
+		for (WorkListener workListener : this.workListeners) {
+			workListener.done();
+		}
 	}
 
 	@Override
 	public synchronized void run() {
-		System.out
-				.println(this.workerCount
-						+ ","
-						+ this.currentRequestCount
-						+ ","
-						+ (this.currentRequestCount != 0 ? (double) this.currentRequestMillis
-								/ this.currentRequestCount
-								: 0));
+		if (this.running) {
+			System.out
+					.println(this.intervalCounter
+							+ ","
+							+ this.workerCount
+							+ ","
+							+ this.currentRequestCount
+							+ ","
+							+ (this.currentRequestCount != 0 ? (double) this.currentRequestMillis
+									/ this.currentRequestCount
+									: 0));
+			this.intervalCounter++;
+		}
 
 		long currentTimeMillis = System.currentTimeMillis();
 		if (this.endTimeMillis <= currentTimeMillis) {
-			System.exit(0);
+			if (this.running) {
+				System.out.println("Ending tests...");
+			}
+			this.running = false;
+
+			this.currentRequestCount = 0;
+			this.currentRequestMillis = 0;
+			notifyAll();
+
+			boolean oneAlive = false;
+			for (WorkerThread workerThread : this.workerThreads) {
+				oneAlive |= workerThread.isAlive();
+			}
+			if (false == oneAlive) {
+				notifyWorkListenersDone();
+			}
+			return;
 		}
 
 		if (this.currentRequestCount < this.requestsPerSecond) {
 			if (this.workerCount < this.maxWorkers) {
-				WorkerThread workerThread = new WorkerThread(this.workerCount,
-						this, this.certificateRepository, this.networkConfig);
+				WorkerThread workerThread = new WorkerThread(
+						this.workerThreadGroup, this.workerCount, this,
+						this.certificateRepository, this.networkConfig);
 				workerThread.start();
+				this.workerThreads.add(workerThread);
 				this.workerCount++;
 			}
 		}
@@ -81,7 +130,7 @@ public class ManagerTimerTask extends TimerTask {
 		notifyAll();
 	}
 
-	public synchronized void reportWork(long millis) {
+	public synchronized boolean reportWork(long millis) {
 		if (this.currentRequestCount >= this.requestsPerSecond) {
 			try {
 				wait();
@@ -91,5 +140,6 @@ public class ManagerTimerTask extends TimerTask {
 		}
 		this.currentRequestCount++;
 		this.currentRequestMillis += millis;
+		return this.running;
 	}
 }
