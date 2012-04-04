@@ -1,6 +1,6 @@
 /*
  * eID Trust Service Project.
- * Copyright (C) 2009-2012 FedICT.
+ * Copyright (C) 2012 Frank Cornelis.
  *
  * This is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version
@@ -18,10 +18,30 @@
 
 package be.fedict.perf.ocsp;
 
-public interface WorkListener {
+public class TestResult {
 
-	void result(int intervalCounter, int workerCount, int currentRequestCount,
-			int currentRequestMillis);
+	private final int workerCount;
 
-	void done();
+	private final int currentRequestCount;
+
+	private final int currentRequestMillis;
+
+	public TestResult(int workerCount, int currentRequestCount,
+			int currentRequestMillis) {
+		this.workerCount = workerCount;
+		this.currentRequestCount = currentRequestCount;
+		this.currentRequestMillis = currentRequestMillis;
+	}
+
+	public int getWorkerCount() {
+		return this.workerCount;
+	}
+
+	public int getCurrentRequestCount() {
+		return this.currentRequestCount;
+	}
+
+	public int getCurrentRequestMillis() {
+		return this.currentRequestMillis;
+	}
 }

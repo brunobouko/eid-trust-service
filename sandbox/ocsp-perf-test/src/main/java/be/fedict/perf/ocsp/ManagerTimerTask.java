@@ -20,6 +20,7 @@ package be.fedict.perf.ocsp;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Timer;
 import java.util.TimerTask;
 
 public class ManagerTimerTask extends TimerTask {
@@ -46,13 +47,16 @@ public class ManagerTimerTask extends TimerTask {
 
 	private boolean running;
 
-	private List<WorkListener> workListeners;
+	private WorkListener workListener;
 
 	private int intervalCounter;
 
-	public ManagerTimerTask(int requestsPerSecond, int maxWorkers,
+	private final Timer timer;
+
+	public ManagerTimerTask(Timer timer, int requestsPerSecond, int maxWorkers,
 			long totalTimeMillis, CertificateRepository certificateRepository,
 			NetworkConfig networkConfig) {
+		this.timer = timer;
 		this.requestsPerSecond = requestsPerSecond;
 		this.maxWorkers = maxWorkers;
 		long beginTimeMillis = System.currentTimeMillis();
@@ -63,18 +67,18 @@ public class ManagerTimerTask extends TimerTask {
 		System.out.println("-------------------------------------------------");
 		this.workerThreads = new LinkedList<WorkerThread>();
 		this.running = true;
-		this.workListeners = new LinkedList<WorkListener>();
 		this.workerThreadGroup = new ThreadGroup("worker-thread-group");
 	}
 
-	public void addWorkListener(WorkListener workListener) {
-		this.workListeners.add(workListener);
+	public void registerWorkListener(WorkListener workListener) {
+		this.workListener = workListener;
 	}
 
 	private void notifyWorkListenersDone() {
-		for (WorkListener workListener : this.workListeners) {
-			workListener.done();
+		if (null == this.workListener) {
+			return;
 		}
+		this.workListener.done();
 	}
 
 	@Override
@@ -90,6 +94,10 @@ public class ManagerTimerTask extends TimerTask {
 							+ (this.currentRequestCount != 0 ? (double) this.currentRequestMillis
 									/ this.currentRequestCount
 									: 0));
+			if (null != this.workListener) {
+				this.workListener.result(intervalCounter, workerCount,
+						currentRequestCount, currentRequestMillis);
+			}
 			this.intervalCounter++;
 		}
 
@@ -110,6 +118,8 @@ public class ManagerTimerTask extends TimerTask {
 			}
 			if (false == oneAlive) {
 				notifyWorkListenersDone();
+				super.cancel();
+				this.timer.cancel();
 			}
 			return;
 		}

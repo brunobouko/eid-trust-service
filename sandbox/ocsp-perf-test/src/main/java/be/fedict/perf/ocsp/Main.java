@@ -22,6 +22,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.security.Security;
 import java.util.Date;
+import java.util.Map;
 import java.util.Timer;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -80,6 +81,18 @@ public class Main implements WorkListener {
 				controlBot.runTest(requestsPerSecond, maxWorkers,
 						totalTimeMillis);
 				break;
+			case 'p':
+				System.out.println("Test results");
+				Map<String, TestResult[]> testResults = controlBot
+						.getTestResults();
+				for (String trustedBot : testResults.keySet()) {
+					// TODO
+				}
+				break;
+			case 'k':
+				System.out.println("Kill all bots");
+				controlBot.killAllBots();
+				break;
 			}
 		} while (commandChar != 'e');
 		System.exit(0);
@@ -89,6 +102,8 @@ public class Main implements WorkListener {
 		System.out.println("Menu");
 		System.out.println("l. List bots");
 		System.out.println("r. Run test");
+		System.out.println("p. Print test results");
+		System.out.println("k. Kill all bots");
 		System.out.println("e. Exit");
 	}
 
@@ -164,18 +179,18 @@ public class Main implements WorkListener {
 				/ runtime.maxMemory() * 100 + " %");
 
 		runTest(requestsPerSecond, maxWorkers, totalTimeMillis,
-				certificateRepository, networkConfig);
+				certificateRepository, networkConfig, this);
 	}
 
 	public void runTest(int requestsPerSecond, int maxWorkers,
 			long totalTimeMillis, CertificateRepository certificateRepository,
-			NetworkConfig networkConfig) {
+			NetworkConfig networkConfig, WorkListener workListener) {
 		System.out.println("Starting tests at: " + new Date());
 		Timer timer = new Timer("manager-timer-task");
-		ManagerTimerTask managerTimerTask = new ManagerTimerTask(
+		ManagerTimerTask managerTimerTask = new ManagerTimerTask(timer,
 				requestsPerSecond, maxWorkers, totalTimeMillis,
 				certificateRepository, networkConfig);
-		managerTimerTask.addWorkListener(this);
+		managerTimerTask.registerWorkListener(workListener);
 		timer.scheduleAtFixedRate(managerTimerTask, new Date(), 1000);
 	}
 
@@ -197,5 +212,10 @@ public class Main implements WorkListener {
 	public void done() {
 		System.out.println("All done.");
 		System.exit(0);
+	}
+
+	@Override
+	public void result(int intervalCounter, int workerCount,
+			int currentRequestCount, int currentRequestMillis) {
 	}
 }
