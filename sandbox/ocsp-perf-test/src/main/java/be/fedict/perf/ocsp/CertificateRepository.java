@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
+import org.apache.http.entity.ByteArrayEntity;
 import org.bouncycastle.ocsp.CertificateID;
 import org.bouncycastle.ocsp.OCSPException;
 import org.bouncycastle.ocsp.OCSPReq;
@@ -39,15 +40,15 @@ import org.bouncycastle.ocsp.OCSPReqGenerator;
 
 public class CertificateRepository {
 
-	private final List<byte[]> ocspRequests;
+	private final List<ByteArrayEntity> ocspRequests;
 
-	private Iterator<byte[]> ocspRequestIterator;
+	private Iterator<ByteArrayEntity> ocspRequestIterator;
 
-	private byte[] ocspRequest;
+	private ByteArrayEntity ocspRequest;
 
 	public CertificateRepository() throws CertificateException, OCSPException,
 			IOException {
-		this.ocspRequests = new LinkedList<byte[]>();
+		this.ocspRequests = new LinkedList<ByteArrayEntity>();
 
 		System.out.println("Loading certificate repository...");
 
@@ -90,7 +91,7 @@ public class CertificateRepository {
 			ocspReqGenerator.addRequest(certificateID);
 			OCSPReq ocspReq = ocspReqGenerator.generate();
 			byte[] ocspReqData = ocspReq.getEncoded();
-			this.ocspRequests.add(ocspReqData);
+			this.ocspRequests.add(new ByteArrayEntity(ocspReqData));
 		}
 
 		if (this.ocspRequests.isEmpty()) {
@@ -111,15 +112,17 @@ public class CertificateRepository {
 		}
 	}
 
-	public synchronized byte[] getOCSPRequest() {
+	public ByteArrayEntity getOCSPRequest() {
 		if (null != this.ocspRequest) {
 			// always use the same in the case of sameSerialNumber
 			return this.ocspRequest;
 		}
-		if (false == this.ocspRequestIterator.hasNext()) {
-			this.ocspRequestIterator = this.ocspRequests.iterator();
+		synchronized (this.ocspRequestIterator) {
+			if (false == this.ocspRequestIterator.hasNext()) {
+				this.ocspRequestIterator = this.ocspRequests.iterator();
+			}
+			return this.ocspRequestIterator.next();
 		}
-		return this.ocspRequestIterator.next();
 	}
 
 	public int getSize() {

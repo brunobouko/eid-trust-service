@@ -21,7 +21,6 @@ package be.fedict.perf.ocsp;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
@@ -64,13 +63,11 @@ public class WorkerThread extends Thread {
 	public void run() {
 		try {
 			boolean running = true;
+			HttpPost httpPost = new HttpPost("http://ocsp.eid.belgium.be");
 			while (running) {
-				byte[] ocspReqData = this.certificateRepository
+				ByteArrayEntity ocspReqHttpEntity = this.certificateRepository
 						.getOCSPRequest();
-
-				HttpPost httpPost = new HttpPost("http://ocsp.eid.belgium.be");
-				HttpEntity httpEntity = new ByteArrayEntity(ocspReqData);
-				httpPost.setEntity(httpEntity);
+				httpPost.setEntity(ocspReqHttpEntity);
 
 				long t0 = System.currentTimeMillis();
 				HttpResponse httpResponse = this.httpClient.execute(httpPost);
@@ -91,8 +88,6 @@ public class WorkerThread extends Thread {
 					throw new RuntimeException("invalid OCSP response status: "
 							+ ocspRespStatus);
 				}
-				// BasicOCSPResp basicOCSPResp = (BasicOCSPResp) ocspResp
-				// .getResponseObject();
 
 				running = this.manager.reportWork(t1 - t0);
 			}
