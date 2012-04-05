@@ -36,19 +36,14 @@ public class WorkerThread extends Thread {
 
 	private final ManagerTimerTask manager;
 
-	private final CertificateRepository certificateRepository;
-
 	private final NetworkConfig networkConfig;
 
 	private final HttpClient httpClient;
 
 	public WorkerThread(ThreadGroup threadGroup, int workerIdx,
-			ManagerTimerTask manager,
-			CertificateRepository certificateRepository,
-			NetworkConfig networkConfig) {
+			ManagerTimerTask manager, NetworkConfig networkConfig) {
 		super(threadGroup, "worker-thread-" + workerIdx);
 		this.manager = manager;
-		this.certificateRepository = certificateRepository;
 		this.networkConfig = networkConfig;
 		this.httpClient = new DefaultHttpClient();
 		if (null != this.networkConfig) {
@@ -62,11 +57,9 @@ public class WorkerThread extends Thread {
 	@Override
 	public void run() {
 		try {
-			boolean running = true;
 			HttpPost httpPost = new HttpPost("http://ocsp.eid.belgium.be");
-			while (running) {
-				ByteArrayEntity ocspReqHttpEntity = this.certificateRepository
-						.getOCSPRequest();
+			ByteArrayEntity ocspReqHttpEntity = this.manager.getOCSPRequest();
+			while (true) {
 				httpPost.setEntity(ocspReqHttpEntity);
 
 				long t0 = System.currentTimeMillis();
@@ -89,8 +82,9 @@ public class WorkerThread extends Thread {
 							+ ocspRespStatus);
 				}
 
-				running = this.manager.reportWork(t1 - t0);
+				ocspReqHttpEntity = this.manager.reportWork(t1 - t0);
 			}
+		} catch (StopWorkException e) {
 			System.out.println("Worker thread terminating: " + this.getName());
 		} catch (Exception e) {
 			System.err.println("worker error: " + e.getMessage());

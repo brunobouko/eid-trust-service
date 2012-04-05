@@ -117,12 +117,10 @@ public class CertificateRepository {
 			// always use the same in the case of sameSerialNumber
 			return this.ocspRequest;
 		}
-		synchronized (this.ocspRequestIterator) {
-			if (false == this.ocspRequestIterator.hasNext()) {
-				this.ocspRequestIterator = this.ocspRequests.iterator();
-			}
-			return this.ocspRequestIterator.next();
+		if (false == this.ocspRequestIterator.hasNext()) {
+			this.ocspRequestIterator = this.ocspRequests.iterator();
 		}
+		return this.ocspRequestIterator.next();
 	}
 
 	public int getSize() {

@@ -35,6 +35,7 @@ import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.ConnectEvent;
 import org.pircbotx.hooks.events.JoinEvent;
 import org.pircbotx.hooks.events.MessageEvent;
+import org.pircbotx.hooks.events.PrivateMessageEvent;
 import org.pircbotx.hooks.events.QuitEvent;
 
 public class ControlBot extends ListenerAdapter<PircBotX> {
@@ -80,6 +81,14 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 
 	@Override
 	public void onMessage(MessageEvent<PircBotX> event) {
+		String message = event.getMessage();
+		String sender = event.getUser().getNick();
+		System.out.println(sender + ": " + message);
+	}
+
+	@Override
+	public void onPrivateMessage(PrivateMessageEvent<PircBotX> event)
+			throws Exception {
 		String message = event.getMessage();
 		String sender = event.getUser().getNick();
 		System.out.println(sender + ": " + message);

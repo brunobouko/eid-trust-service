@@ -32,6 +32,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.encoders.Hex;
 import org.pircbotx.Channel;
 import org.pircbotx.PircBotX;
+import org.pircbotx.User;
 import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.ConnectEvent;
 import org.pircbotx.hooks.events.MessageEvent;
@@ -45,9 +46,11 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 
 	private final Main main;
 
+	private final PircBotX pircBotX;
+
 	private final CertificateRepository certificateRepository;
 
-	private final PircBotX pircBotX;
+	private User controlUser;
 
 	public ClientBot(String secret, Main main) throws Exception {
 		this.secret = secret;
@@ -96,7 +99,7 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 				String toBeSigned = "HI " + challenge + nonce;
 				byte[] signatureData = mac.doFinal(toBeSigned.getBytes());
 				String signature = new String(Hex.encode(signatureData));
-				this.pircBotX.sendMessage(channel, "HI " + nonce + " "
+				this.pircBotX.sendMessage(event.getUser(), "HI " + nonce + " "
 						+ signature);
 			} else if (message.startsWith("TEST ")) {
 				Scanner scanner = new Scanner(message);
@@ -132,6 +135,7 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 					throw new RuntimeException("invalid request signature");
 				} else {
 					System.out.println("Ready to run test...");
+					this.controlUser = event.getUser();
 					this.pircBotX.sendMessage(channel, "STARTING");
 					this.certificateRepository.init(sameSerialNumber);
 					this.main.runTest(requestsPerSecond, maxWorkers,
@@ -180,6 +184,6 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 		String message = "RESULT " + intervalCounter + " " + workerCount + " "
 				+ currentRequestCount + " " + currentRequestMillis;
 		// pircbot is queing, so minimal impact on timer here
-		this.pircBotX.sendMessage(Main.IRC_CHANNEL, message);
+		this.pircBotX.sendMessage(this.controlUser, message);
 	}
 }

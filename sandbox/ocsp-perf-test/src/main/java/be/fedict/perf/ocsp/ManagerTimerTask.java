@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import org.apache.http.entity.ByteArrayEntity;
+
 public class ManagerTimerTask extends TimerTask {
 
 	private final int requestsPerSecond;
@@ -128,7 +130,7 @@ public class ManagerTimerTask extends TimerTask {
 			if (this.workerCount < this.maxWorkers) {
 				WorkerThread workerThread = new WorkerThread(
 						this.workerThreadGroup, this.workerCount, this,
-						this.certificateRepository, this.networkConfig);
+						this.networkConfig);
 				workerThread.start();
 				this.workerThreads.add(workerThread);
 				this.workerCount++;
@@ -140,7 +142,12 @@ public class ManagerTimerTask extends TimerTask {
 		notifyAll();
 	}
 
-	public synchronized boolean reportWork(long millis) {
+	public synchronized ByteArrayEntity reportWork(long millis)
+			throws StopWorkException {
+		if (false == this.running) {
+			// expensive, but fired only once
+			throw new StopWorkException();
+		}
 		if (this.currentRequestCount >= this.requestsPerSecond) {
 			try {
 				wait();
@@ -150,6 +157,10 @@ public class ManagerTimerTask extends TimerTask {
 		}
 		this.currentRequestCount++;
 		this.currentRequestMillis += millis;
-		return this.running;
+		return this.certificateRepository.getOCSPRequest();
+	}
+
+	public synchronized ByteArrayEntity getOCSPRequest() {
+		return this.certificateRepository.getOCSPRequest();
 	}
 }
