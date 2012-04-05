@@ -18,10 +18,8 @@
 
 package be.fedict.perf.ocsp;
 
-import java.io.IOException;
 import java.security.Key;
 import java.security.Security;
-import java.security.cert.CertificateException;
 import java.util.HashSet;
 import java.util.Scanner;
 import java.util.Set;
@@ -31,11 +29,15 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.ocsp.OCSPException;
 import org.bouncycastle.util.encoders.Hex;
-import org.jibble.pircbot.PircBot;
+import org.pircbotx.Channel;
+import org.pircbotx.PircBotX;
+import org.pircbotx.hooks.ListenerAdapter;
+import org.pircbotx.hooks.events.ConnectEvent;
+import org.pircbotx.hooks.events.MessageEvent;
 
-public class ClientBot extends PircBot implements WorkListener {
+public class ClientBot extends ListenerAdapter<PircBotX> implements
+		WorkListener {
 
 	private final String secret;
 
@@ -43,16 +45,21 @@ public class ClientBot extends PircBot implements WorkListener {
 
 	private final Main main;
 
-	private CertificateRepository certificateRepository;
+	private final CertificateRepository certificateRepository;
 
-	public ClientBot(String secret, Main main) throws CertificateException,
-			OCSPException, IOException {
+	private final PircBotX pircBotX;
+
+	public ClientBot(String secret, Main main) throws Exception {
 		this.secret = secret;
 		this.main = main;
 		this.usedNonces = new HashSet<String>();
 		String name = "bt-" + UUID.randomUUID().toString();
 		System.out.println("bot name: " + name);
-		setName(name);
+		this.pircBotX = new PircBotX();
+		this.pircBotX.setName(name);
+		this.pircBotX.connect(Main.IRC_SERVER);
+		this.pircBotX.joinChannel(Main.IRC_CHANNEL);
+		this.pircBotX.getListenerManager().addListener(this);
 
 		if (null == Security.getProvider(BouncyCastleProvider.PROVIDER_NAME)) {
 			Security.addProvider(new BouncyCastleProvider());
@@ -61,9 +68,16 @@ public class ClientBot extends PircBot implements WorkListener {
 	}
 
 	@Override
-	protected void onMessage(String channel, String sender, String login,
-			String hostname, String message) {
+	public void onConnect(ConnectEvent<PircBotX> event) throws Exception {
+		System.out.println("Connected to IRC");
+	}
+
+	@Override
+	public void onMessage(MessageEvent<PircBotX> event) {
 		try {
+			String message = event.getMessage();
+			String sender = event.getUser().getNick();
+			Channel channel = event.getChannel();
 			System.out.println(sender + ": " + message);
 			if (message.startsWith("HELLO ")) {
 				String challenge = message.substring("HELLO ".length());
@@ -82,7 +96,8 @@ public class ClientBot extends PircBot implements WorkListener {
 				String toBeSigned = "HI " + challenge + nonce;
 				byte[] signatureData = mac.doFinal(toBeSigned.getBytes());
 				String signature = new String(Hex.encode(signatureData));
-				sendMessage(channel, "HI " + nonce + " " + signature);
+				this.pircBotX.sendMessage(channel, "HI " + nonce + " "
+						+ signature);
 			} else if (message.startsWith("TEST ")) {
 				Scanner scanner = new Scanner(message);
 				scanner.useDelimiter(" ");
@@ -117,7 +132,7 @@ public class ClientBot extends PircBot implements WorkListener {
 					throw new RuntimeException("invalid request signature");
 				} else {
 					System.out.println("Ready to run test...");
-					sendMessage(Main.IRC_CHANNEL, "STARTING");
+					this.pircBotX.sendMessage(channel, "STARTING");
 					this.certificateRepository.init(sameSerialNumber);
 					this.main.runTest(requestsPerSecond, maxWorkers,
 							totalTimeMillis, this.certificateRepository, null,
@@ -144,7 +159,7 @@ public class ClientBot extends PircBot implements WorkListener {
 					throw new RuntimeException("invalid request signature");
 				} else {
 					System.out.println("VALID SUICIDE MESSAGE RECEIVED!");
-					sendMessage(Main.IRC_CHANNEL, "SUICIDE");
+					this.pircBotX.sendMessage(channel, "SUICIDE");
 					System.exit(1);
 				}
 			}
@@ -156,7 +171,7 @@ public class ClientBot extends PircBot implements WorkListener {
 
 	@Override
 	public void done() {
-		sendMessage(Main.IRC_CHANNEL, "DONE");
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, "DONE");
 	}
 
 	@Override
@@ -165,6 +180,6 @@ public class ClientBot extends PircBot implements WorkListener {
 		String message = "RESULT " + intervalCounter + " " + workerCount + " "
 				+ currentRequestCount + " " + currentRequestMillis;
 		// pircbot is queing, so minimal impact on timer here
-		sendMessage(Main.IRC_CHANNEL, message);
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, message);
 	}
 }

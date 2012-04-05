@@ -32,8 +32,8 @@
 			<artifactId>httpclient</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>pircbot</groupId>
-			<artifactId>pircbot</artifactId>
+			<groupId>org.pircbotx</groupId>
+			<artifactId>pircbotx</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
@@ -111,9 +111,9 @@
 				<scope>compile</scope>
 			</dependency>
 			<dependency>
-				<groupId>pircbot</groupId>
-				<artifactId>pircbot</artifactId>
-				<version>1.5.0</version>
+				<groupId>org.pircbotx</groupId>
+				<artifactId>pircbotx</artifactId>
+				<version>1.6</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

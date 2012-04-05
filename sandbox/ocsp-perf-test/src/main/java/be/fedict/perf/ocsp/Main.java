@@ -29,7 +29,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class Main implements WorkListener {
 
-	private static final String IRC_SERVER = "irc.freenode.net";
+	public static final String IRC_SERVER = "irc.freenode.net";
 
 	public static final String IRC_CHANNEL = "#ocsp-perf-test";
 
@@ -53,16 +53,12 @@ public class Main implements WorkListener {
 
 	private void bot() throws Exception {
 		System.out.println("Bot mode...");
-		ClientBot clientBot = new ClientBot(this.secret, this);
-		clientBot.connect(IRC_SERVER);
-		clientBot.joinChannel(IRC_CHANNEL);
+		new ClientBot(this.secret, this);
 	}
 
 	private void control() throws Exception {
 		System.out.println("Control mode...");
 		ControlBot controlBot = new ControlBot(this.secret);
-		controlBot.connect(IRC_SERVER);
-		controlBot.joinChannel(IRC_CHANNEL);
 		char commandChar;
 		do {
 			showMenu();

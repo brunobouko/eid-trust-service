@@ -18,8 +18,6 @@
 
 package be.fedict.perf.ocsp;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.security.Key;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,9 +30,14 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.bouncycastle.util.encoders.Hex;
-import org.jibble.pircbot.PircBot;
+import org.pircbotx.PircBotX;
+import org.pircbotx.hooks.ListenerAdapter;
+import org.pircbotx.hooks.events.ConnectEvent;
+import org.pircbotx.hooks.events.JoinEvent;
+import org.pircbotx.hooks.events.MessageEvent;
+import org.pircbotx.hooks.events.QuitEvent;
 
-public class ControlBot extends PircBot {
+public class ControlBot extends ListenerAdapter<PircBotX> {
 
 	private String challenge;
 
@@ -44,27 +47,41 @@ public class ControlBot extends PircBot {
 
 	private final Map<String, TestResult[]> testResults;
 
-	public ControlBot(String secret) {
+	private final PircBotX pircBotX;
+
+	public ControlBot(String secret) throws Exception {
 		this.secret = secret;
 		this.usedNonces = new HashSet<String>();
 		this.testResults = new HashMap<String, TestResult[]>();
 
-		String username = System.getProperty("user.name");
-		InetAddress localhostInetAddress;
-		try {
-			localhostInetAddress = InetAddress.getLocalHost();
-		} catch (UnknownHostException e) {
-			throw new RuntimeException(e);
-		}
-		String hostname = localhostInetAddress.getHostName();
-		String name = "control-" + hostname + "-" + username;
+		String name = "ctrl-" + UUID.randomUUID().toString();
 		System.out.println("bot name: " + name);
-		setName(name);
+		this.pircBotX = new PircBotX();
+		this.pircBotX.setName(name);
+		this.pircBotX.getListenerManager().addListener(this);
+		this.pircBotX.connect(Main.IRC_SERVER);
+		this.pircBotX.joinChannel(Main.IRC_CHANNEL);
 	}
 
 	@Override
-	protected void onMessage(String channel, String sender, String login,
-			String hostname, String message) {
+	public void onConnect(ConnectEvent<PircBotX> event) throws Exception {
+		System.out.println("Connected to IRC");
+	}
+
+	@Override
+	public void onJoin(JoinEvent<PircBotX> event) throws Exception {
+		System.out.println("Joining: " + event.getUser().getNick());
+	}
+
+	@Override
+	public void onQuit(QuitEvent<PircBotX> event) throws Exception {
+		System.out.println("Quits: " + event.getUser().getNick());
+	}
+
+	@Override
+	public void onMessage(MessageEvent<PircBotX> event) {
+		String message = event.getMessage();
+		String sender = event.getUser().getNick();
 		System.out.println(sender + ": " + message);
 		try {
 			if (message.startsWith("HI ")) {
@@ -114,7 +131,7 @@ public class ControlBot extends PircBot {
 	public void listBots() {
 		this.challenge = UUID.randomUUID().toString();
 		this.testResults.clear();
-		sendMessage(Main.IRC_CHANNEL, "HELLO " + this.challenge);
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, "HELLO " + this.challenge);
 	}
 
 	public Map<String, TestResult[]> getTestResults() {
@@ -138,7 +155,7 @@ public class ControlBot extends PircBot {
 		mac.init(key);
 		byte[] signatureData = mac.doFinal(message.getBytes());
 		String signature = new String(Hex.encode(signatureData));
-		sendMessage(Main.IRC_CHANNEL, message + " " + signature);
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, message + " " + signature);
 	}
 
 	public void killAllBots() throws Exception {
@@ -150,6 +167,7 @@ public class ControlBot extends PircBot {
 		mac.init(key);
 		byte[] signatureData = mac.doFinal(toBeSigned.getBytes());
 		String signature = new String(Hex.encode(signatureData));
-		sendMessage(Main.IRC_CHANNEL, toBeSigned + " " + signature);
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, toBeSigned + " "
+				+ signature);
 	}
 }
