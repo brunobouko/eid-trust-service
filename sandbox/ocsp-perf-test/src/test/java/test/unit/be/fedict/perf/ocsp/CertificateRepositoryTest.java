@@ -43,7 +43,7 @@ public class CertificateRepositoryTest {
 	@Test
 	public void testLoadCertificateRepository() throws Exception {
 		// operate
-		CertificateRepository certificateRepository = new CertificateRepository(false);
+		CertificateRepository certificateRepository = new CertificateRepository();
 
 		// verify
 		LOG.debug("number of certificates in repository: "

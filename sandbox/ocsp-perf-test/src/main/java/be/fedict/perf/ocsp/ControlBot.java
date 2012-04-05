@@ -21,7 +21,6 @@ package be.fedict.perf.ocsp;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.Key;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -123,7 +122,7 @@ public class ControlBot extends PircBot {
 	}
 
 	public void runTest(int requestsPerSecond, int maxWorkers,
-			long totalTimeMillis) throws Exception {
+			long totalTimeMillis, boolean sameSerialNumber) throws Exception {
 		// reset test results
 		for (String trustedBot : this.testResults.keySet()) {
 			TestResult[] botTestResults = new TestResult[(int) totalTimeMillis / 1000 + 1];
@@ -132,7 +131,7 @@ public class ControlBot extends PircBot {
 
 		String nonce = UUID.randomUUID().toString();
 		String message = "TEST " + requestsPerSecond + " " + maxWorkers + " "
-				+ totalTimeMillis + " " + nonce;
+				+ totalTimeMillis + " " + sameSerialNumber + " " + nonce;
 		Mac mac = Mac.getInstance("HmacSHA1");
 		Key key = new SecretKeySpec(this.secret.getBytes(), 0,
 				this.secret.getBytes().length, "HmacSHA1");

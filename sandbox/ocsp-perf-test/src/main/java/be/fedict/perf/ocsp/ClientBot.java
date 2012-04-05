@@ -57,7 +57,7 @@ public class ClientBot extends PircBot implements WorkListener {
 		if (null == Security.getProvider(BouncyCastleProvider.PROVIDER_NAME)) {
 			Security.addProvider(new BouncyCastleProvider());
 		}
-		this.certificateRepository = new CertificateRepository(false);
+		this.certificateRepository = new CertificateRepository();
 	}
 
 	@Override
@@ -90,12 +90,14 @@ public class ClientBot extends PircBot implements WorkListener {
 				int requestsPerSecond = scanner.nextInt();
 				int maxWorkers = scanner.nextInt();
 				int totalTimeMillis = scanner.nextInt();
+				boolean sameSerialNumber = scanner.nextBoolean();
 				String nonce = scanner.next();
 				String signature = scanner.next();
 				System.out.println("Request for testing");
 				System.out.println("Requests per second: " + requestsPerSecond);
 				System.out.println("Max workers: " + maxWorkers);
 				System.out.println("Total time millis: " + totalTimeMillis);
+				System.out.println("Same serial number: " + sameSerialNumber);
 
 				if (this.usedNonces.contains(nonce)) {
 					throw new RuntimeException("nonce already user");
@@ -103,7 +105,8 @@ public class ClientBot extends PircBot implements WorkListener {
 				this.usedNonces.add(nonce);
 
 				String toBeSigned = "TEST " + requestsPerSecond + " "
-						+ maxWorkers + " " + totalTimeMillis + " " + nonce;
+						+ maxWorkers + " " + totalTimeMillis + " "
+						+ sameSerialNumber + " " + nonce;
 				Mac mac = Mac.getInstance("HmacSHA1");
 				Key key = new SecretKeySpec(this.secret.getBytes(), 0,
 						this.secret.getBytes().length, "HmacSHA1");
@@ -115,8 +118,10 @@ public class ClientBot extends PircBot implements WorkListener {
 				} else {
 					System.out.println("Ready to run test...");
 					sendMessage(Main.IRC_CHANNEL, "STARTING");
+					this.certificateRepository.init(sameSerialNumber);
 					this.main.runTest(requestsPerSecond, maxWorkers,
-							totalTimeMillis, certificateRepository, null, this);
+							totalTimeMillis, this.certificateRepository, null,
+							this);
 				}
 			} else if (message.startsWith("KILL ")) {
 				Scanner scanner = new Scanner(message);
@@ -159,6 +164,7 @@ public class ClientBot extends PircBot implements WorkListener {
 			int currentRequestCount, int currentRequestMillis) {
 		String message = "RESULT " + intervalCounter + " " + workerCount + " "
 				+ currentRequestCount + " " + currentRequestMillis;
+		// pircbot is queing, so minimal impact on timer here
 		sendMessage(Main.IRC_CHANNEL, message);
 	}
 }

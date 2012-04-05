@@ -78,8 +78,10 @@ public class Main implements WorkListener {
 				int maxWorkers = getKeyboardInt();
 				System.out.print("Total Time in seconds: ");
 				long totalTimeMillis = getKeyboardInt() * 1000;
+				System.out.print("Always same serial number (Y/N): ");
+				boolean sameSerialNumber = getKeyboardBoolean();
 				controlBot.runTest(requestsPerSecond, maxWorkers,
-						totalTimeMillis);
+						totalTimeMillis, sameSerialNumber);
 				break;
 			case 'p':
 				System.out.println("Test results");
@@ -127,6 +129,20 @@ public class Main implements WorkListener {
 		return Integer.parseInt(line);
 	}
 
+	private boolean getKeyboardBoolean() throws Exception {
+		BufferedReader bufferedReader = new BufferedReader(
+				new InputStreamReader(System.in));
+		String line;
+		do {
+			line = bufferedReader.readLine();
+		} while (line.length() < 1);
+		char c = line.toUpperCase().charAt(0);
+		if ('Y' == c) {
+			return true;
+		}
+		return false;
+	}
+
 	private void standalone(String[] args) throws Exception {
 		if (args.length < 4) {
 			usage();
@@ -155,8 +171,8 @@ public class Main implements WorkListener {
 			Security.addProvider(new BouncyCastleProvider());
 		}
 
-		CertificateRepository certificateRepository = new CertificateRepository(
-				sameSerialNumber);
+		CertificateRepository certificateRepository = new CertificateRepository();
+		certificateRepository.init(sameSerialNumber);
 		System.out.println("Certificate repository size: "
 				+ certificateRepository.getSize());
 

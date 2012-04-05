@@ -43,10 +43,10 @@ public class CertificateRepository {
 
 	private Iterator<byte[]> ocspRequestIterator;
 
-	private final byte[] ocspRequest;
+	private byte[] ocspRequest;
 
-	public CertificateRepository(boolean sameSerialNumber)
-			throws CertificateException, OCSPException, IOException {
+	public CertificateRepository() throws CertificateException, OCSPException,
+			IOException {
 		this.ocspRequests = new LinkedList<byte[]>();
 
 		System.out.println("Loading certificate repository...");
@@ -101,9 +101,11 @@ public class CertificateRepository {
 		Collections.shuffle(this.ocspRequests);
 
 		this.ocspRequestIterator = this.ocspRequests.iterator();
+	}
 
+	public void init(boolean sameSerialNumber) {
 		if (sameSerialNumber) {
-			this.ocspRequest = this.ocspRequestIterator.next();
+			this.ocspRequest = this.ocspRequests.iterator().next();
 		} else {
 			this.ocspRequest = null;
 		}

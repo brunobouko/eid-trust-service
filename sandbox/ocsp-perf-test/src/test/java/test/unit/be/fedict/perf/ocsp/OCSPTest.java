@@ -41,7 +41,7 @@ public class OCSPTest {
 	//@Test
 	public void testOCSPRequestConstant() throws Exception {
 		// setup
-		CertificateRepository certificateRepository = new CertificateRepository(false);
+		CertificateRepository certificateRepository = new CertificateRepository();
 		CertificateID certificateID = null; //certificateRepository.getCertificateID();
 
 		// operate
