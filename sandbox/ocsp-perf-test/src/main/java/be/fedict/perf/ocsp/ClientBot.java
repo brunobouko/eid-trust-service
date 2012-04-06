@@ -36,6 +36,7 @@ import org.pircbotx.User;
 import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.ConnectEvent;
 import org.pircbotx.hooks.events.MessageEvent;
+import org.pircbotx.hooks.events.NoticeEvent;
 
 public class ClientBot extends ListenerAdapter<PircBotX> implements
 		WorkListener {
@@ -59,6 +60,7 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 		String name = "bt-" + UUID.randomUUID().toString();
 		System.out.println("bot name: " + name);
 		this.pircBotX = new PircBotX();
+		//this.pircBotX.setVerbose(true);
 		this.pircBotX.setName(name);
 		this.pircBotX.connect(Main.IRC_SERVER);
 		this.pircBotX.joinChannel(Main.IRC_CHANNEL);
@@ -73,6 +75,12 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 	@Override
 	public void onConnect(ConnectEvent<PircBotX> event) throws Exception {
 		System.out.println("Connected to IRC");
+	}
+	
+	@Override
+	public void onNotice(NoticeEvent<PircBotX> event) throws Exception {
+		String notice = event.getNotice();
+		System.out.println("NOTICE: " + notice);
 	}
 
 	@Override

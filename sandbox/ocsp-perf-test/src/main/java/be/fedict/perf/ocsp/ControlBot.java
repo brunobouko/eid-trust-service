@@ -35,6 +35,7 @@ import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.ConnectEvent;
 import org.pircbotx.hooks.events.JoinEvent;
 import org.pircbotx.hooks.events.MessageEvent;
+import org.pircbotx.hooks.events.NoticeEvent;
 import org.pircbotx.hooks.events.PrivateMessageEvent;
 import org.pircbotx.hooks.events.QuitEvent;
 
@@ -58,6 +59,7 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 		String name = "ctrl-" + UUID.randomUUID().toString();
 		System.out.println("bot name: " + name);
 		this.pircBotX = new PircBotX();
+		//this.pircBotX.setVerbose(true);
 		this.pircBotX.setName(name);
 		this.pircBotX.getListenerManager().addListener(this);
 		this.pircBotX.connect(Main.IRC_SERVER);
@@ -77,6 +79,12 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 	@Override
 	public void onQuit(QuitEvent<PircBotX> event) throws Exception {
 		System.out.println("Quits: " + event.getUser().getNick());
+	}
+
+	@Override
+	public void onNotice(NoticeEvent<PircBotX> event) throws Exception {
+		String notice = event.getNotice();
+		System.out.println("NOTICE: " + notice);
 	}
 
 	@Override
