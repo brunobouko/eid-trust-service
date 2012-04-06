@@ -21,71 +21,39 @@ package be.fedict.perf.ocsp;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
-import java.security.Key;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Scanner;
-import java.util.Set;
 import java.util.UUID;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.NullOutputStream;
-import org.bouncycastle.crypto.digests.SHA1Digest;
 import org.bouncycastle.crypto.io.MacInputStream;
 import org.bouncycastle.crypto.macs.HMac;
-import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.util.encoders.Hex;
 import org.pircbotx.DccChat;
 import org.pircbotx.DccFileTransfer;
 import org.pircbotx.PircBotX;
-import org.pircbotx.hooks.ListenerAdapter;
-import org.pircbotx.hooks.events.ConnectEvent;
 import org.pircbotx.hooks.events.IncomingChatRequestEvent;
 import org.pircbotx.hooks.events.IncomingFileTransferEvent;
 import org.pircbotx.hooks.events.JoinEvent;
 import org.pircbotx.hooks.events.MessageEvent;
-import org.pircbotx.hooks.events.NoticeEvent;
 import org.pircbotx.hooks.events.PrivateMessageEvent;
 import org.pircbotx.hooks.events.QuitEvent;
 
-public class ControlBot extends ListenerAdapter<PircBotX> {
+public class ControlBot extends AbstractBot {
 
 	private String challenge;
-
-	private final String secret;
-
-	private final Set<String> usedNonces;
 
 	private final Map<String, TestResult[]> testResults;
 
 	private final Map<String, File> receivedFiles;
 
-	private final PircBotX pircBotX;
-
 	public ControlBot(String secret) throws Exception {
-		this.secret = secret;
-		this.usedNonces = new HashSet<String>();
+		super(secret, "ctrl");
 		this.testResults = new HashMap<String, TestResult[]>();
 		this.receivedFiles = new HashMap<String, File>();
-
-		String name = "ctrl-" + UUID.randomUUID().toString();
-		System.out.println("bot name: " + name);
-		this.pircBotX = new PircBotX();
-		// this.pircBotX.setVerbose(true);
-		this.pircBotX.setName(name);
-		this.pircBotX.getListenerManager().addListener(this);
-		this.pircBotX.connect(Main.IRC_SERVER);
-		this.pircBotX.joinChannel(Main.IRC_CHANNEL);
-	}
-
-	@Override
-	public void onConnect(ConnectEvent<PircBotX> event) throws Exception {
-		System.out.println("Connected to IRC");
 	}
 
 	@Override
@@ -96,12 +64,6 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 	@Override
 	public void onQuit(QuitEvent<PircBotX> event) throws Exception {
 		System.out.println("Quits: " + event.getUser().getNick());
-	}
-
-	@Override
-	public void onNotice(NoticeEvent<PircBotX> event) throws Exception {
-		String notice = event.getNotice();
-		System.out.println("NOTICE: " + notice);
 	}
 
 	@Override
@@ -123,39 +85,15 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 				scanner.useDelimiter(" ");
 				scanner.next();
 				String nonce = scanner.next();
-				String signature = scanner.next();
+				String actualSignature = scanner.next();
 
-				if (this.usedNonces.contains(nonce)) {
-					throw new RuntimeException("nonce already used");
-				}
-				this.usedNonces.add(nonce);
+				checkNonce(nonce);
 
 				String toBeSigned = "HI " + this.challenge + nonce;
-				Mac mac = Mac.getInstance("HmacSHA1");
-				Key key = new SecretKeySpec(this.secret.getBytes(), 0,
-						this.secret.getBytes().length, "HmacSHA1");
-				mac.init(key);
-				byte[] signatureData = mac.doFinal(toBeSigned.getBytes());
-				String expectedSignature = new String(Hex.encode(signatureData));
-				if (signature.equals(expectedSignature)) {
-					System.out.println("Trusted bot: " + sender);
-					this.testResults.put(sender, null);
-					// we can accept test results from trusted senders
-				} else {
-					System.err.println("UNTRUSTED BOT: " + sender);
-				}
-			} else if (message.startsWith("RESULT ")) {
-				Scanner scanner = new Scanner(message);
-				scanner.useDelimiter(" ");
-				scanner.next();
-				int intervalCount = scanner.nextInt();
-				int workerCount = scanner.nextInt();
-				int currentRequestCount = scanner.nextInt();
-				int currentRequestMillis = scanner.nextInt();
-				// cannot rely on this result because of IRC server throttling
-				// TestResult[] botTestResults = this.testResults.get(sender);
-				// botTestResults[intervalCount] = new TestResult(workerCount,
-				// currentRequestCount, currentRequestMillis);
+				checkSignature(toBeSigned, actualSignature, event.getUser());
+				System.out.println("Trusted bot: " + sender);
+				this.testResults.put(sender, null);
+				// we can accept test results from trusted senders
 			}
 		} catch (Exception e) {
 			System.err.println("Error: " + e.getMessage());
@@ -192,8 +130,7 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 			String actualSignature = scanner.next();
 			File receivedFile = this.receivedFiles.get(nick);
 			FileInputStream fileInputStream = new FileInputStream(receivedFile);
-			HMac hMac = new HMac(new SHA1Digest());
-			hMac.init(new KeyParameter(this.secret.getBytes()));
+			HMac hMac = getHMac();
 			MacInputStream macInputStream = new MacInputStream(fileInputStream,
 					hMac);
 			NullOutputStream nullOutputStream = new NullOutputStream();
@@ -248,31 +185,25 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 		this.receivedFiles.clear();
 
 		String nonce = UUID.randomUUID().toString();
-		String message = "TEST " + requestsPerSecond + " " + maxWorkers + " "
-				+ totalTimeMillis + " " + sameSerialNumber + " " + nonce;
-		Mac mac = Mac.getInstance("HmacSHA1");
-		Key key = new SecretKeySpec(this.secret.getBytes(), 0,
-				this.secret.getBytes().length, "HmacSHA1");
-		mac.init(key);
-		byte[] signatureData = mac.doFinal(message.getBytes());
-		String signature = new String(Hex.encode(signatureData));
-		this.pircBotX.sendMessage(Main.IRC_CHANNEL, message + " " + signature);
+		String toBeSigned = "TEST " + requestsPerSecond + " " + maxWorkers
+				+ " " + totalTimeMillis + " " + sameSerialNumber + " " + nonce;
+		String signature = sign(toBeSigned);
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, toBeSigned + " "
+				+ signature);
 	}
 
 	public void killAllBots() throws Exception {
 		String nonce = UUID.randomUUID().toString();
 		String toBeSigned = "KILL " + nonce;
-		Mac mac = Mac.getInstance("HmacSHA1");
-		Key key = new SecretKeySpec(this.secret.getBytes(), 0,
-				this.secret.getBytes().length, "HmacSHA1");
-		mac.init(key);
-		byte[] signatureData = mac.doFinal(toBeSigned.getBytes());
-		String signature = new String(Hex.encode(signatureData));
+		String signature = sign(toBeSigned);
 		this.pircBotX.sendMessage(Main.IRC_CHANNEL, toBeSigned + " "
 				+ signature);
 	}
 
-	public void retrieveTestResults() {
-		this.pircBotX.sendMessage(Main.IRC_CHANNEL, "GET_RESULTS");
+	public void retrieveTestResults() throws Exception {
+		String nonce = UUID.randomUUID().toString();
+		String toBeSigned = "GET_RESULTS " + nonce;
+		String signature = sign(toBeSigned);
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, toBeSigned + signature);
 	}
 }

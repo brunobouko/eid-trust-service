@@ -133,6 +133,8 @@ public class Main implements WorkListener {
 				System.out.println("Get test results");
 				controlBot.retrieveTestResults();
 				break;
+			case '?':
+				break;
 			}
 		} while (commandChar != 'e');
 		System.exit(0);
@@ -140,12 +142,14 @@ public class Main implements WorkListener {
 
 	private static void showMenu() {
 		System.out.println("Menu");
+		System.out.println("====");
 		System.out.println("l. List bots");
 		System.out.println("r. Run test");
 		System.out.println("g. Get test results");
 		System.out.println("s. Save test results");
 		System.out.println("k. Kill all bots");
 		System.out.println("e. Exit");
+		System.out.println("?. Show menu");
 	}
 
 	private String getKeyboardString() throws Exception {

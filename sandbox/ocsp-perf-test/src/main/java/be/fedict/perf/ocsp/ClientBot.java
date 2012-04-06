@@ -21,43 +21,25 @@ package be.fedict.perf.ocsp;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
-import java.security.Key;
 import java.security.Security;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
-import java.util.Set;
 import java.util.UUID;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-
-import org.bouncycastle.crypto.digests.SHA1Digest;
 import org.bouncycastle.crypto.io.MacOutputStream;
 import org.bouncycastle.crypto.macs.HMac;
-import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.encoders.Hex;
 import org.pircbotx.Channel;
 import org.pircbotx.DccChat;
 import org.pircbotx.PircBotX;
 import org.pircbotx.User;
-import org.pircbotx.hooks.ListenerAdapter;
-import org.pircbotx.hooks.events.ConnectEvent;
 import org.pircbotx.hooks.events.MessageEvent;
-import org.pircbotx.hooks.events.NoticeEvent;
 
-public class ClientBot extends ListenerAdapter<PircBotX> implements
-		WorkListener {
-
-	private final String secret;
-
-	private final Set<String> usedNonces;
+public class ClientBot extends AbstractBot implements WorkListener {
 
 	private final Main main;
-
-	private final PircBotX pircBotX;
 
 	private final CertificateRepository certificateRepository;
 
@@ -66,34 +48,14 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 	private final List<TestResult> testResults;
 
 	public ClientBot(String secret, Main main) throws Exception {
-		this.secret = secret;
+		super(secret, "bt");
 		this.main = main;
-		this.usedNonces = new HashSet<String>();
-		String name = "bt-" + UUID.randomUUID().toString();
-		System.out.println("bot name: " + name);
-		this.pircBotX = new PircBotX();
-		// this.pircBotX.setVerbose(true);
-		this.pircBotX.setName(name);
-		this.pircBotX.connect(Main.IRC_SERVER);
-		this.pircBotX.joinChannel(Main.IRC_CHANNEL);
-		this.pircBotX.getListenerManager().addListener(this);
 
 		if (null == Security.getProvider(BouncyCastleProvider.PROVIDER_NAME)) {
 			Security.addProvider(new BouncyCastleProvider());
 		}
 		this.certificateRepository = new CertificateRepository();
 		this.testResults = new LinkedList<TestResult>();
-	}
-
-	@Override
-	public void onConnect(ConnectEvent<PircBotX> event) throws Exception {
-		System.out.println("Connected to IRC");
-	}
-
-	@Override
-	public void onNotice(NoticeEvent<PircBotX> event) throws Exception {
-		String notice = event.getNotice();
-		System.out.println("NOTICE: " + notice);
 	}
 
 	@Override
@@ -107,19 +69,11 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 				String challenge = message.substring("HELLO ".length());
 				System.out.println("challenge: " + challenge);
 
-				if (this.usedNonces.contains(challenge)) {
-					throw new RuntimeException("nonce already user");
-				}
-				this.usedNonces.add(challenge);
+				checkNonce(challenge);
 
-				Mac mac = Mac.getInstance("HmacSHA1");
-				Key key = new SecretKeySpec(this.secret.getBytes(), 0,
-						this.secret.getBytes().length, "HmacSHA1");
-				mac.init(key);
 				String nonce = UUID.randomUUID().toString();
 				String toBeSigned = "HI " + challenge + nonce;
-				byte[] signatureData = mac.doFinal(toBeSigned.getBytes());
-				String signature = new String(Hex.encode(signatureData));
+				String signature = sign(toBeSigned);
 				this.pircBotX.sendMessage(event.getUser(), "HI " + nonce + " "
 						+ signature);
 			} else if (message.startsWith("TEST ")) {
@@ -131,72 +85,64 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 				int totalTimeMillis = scanner.nextInt();
 				boolean sameSerialNumber = scanner.nextBoolean();
 				String nonce = scanner.next();
-				String signature = scanner.next();
+				String actualSignature = scanner.next();
 				System.out.println("Request for testing");
 				System.out.println("Requests per second: " + requestsPerSecond);
 				System.out.println("Max workers: " + maxWorkers);
 				System.out.println("Total time millis: " + totalTimeMillis);
 				System.out.println("Same serial number: " + sameSerialNumber);
 
-				if (this.usedNonces.contains(nonce)) {
-					throw new RuntimeException("nonce already user");
-				}
-				this.usedNonces.add(nonce);
+				checkNonce(nonce);
 
 				String toBeSigned = "TEST " + requestsPerSecond + " "
 						+ maxWorkers + " " + totalTimeMillis + " "
 						+ sameSerialNumber + " " + nonce;
-				Mac mac = Mac.getInstance("HmacSHA1");
-				Key key = new SecretKeySpec(this.secret.getBytes(), 0,
-						this.secret.getBytes().length, "HmacSHA1");
-				mac.init(key);
-				byte[] signatureData = mac.doFinal(toBeSigned.getBytes());
-				String expectedSignature = new String(Hex.encode(signatureData));
-				if (false == signature.equals(expectedSignature)) {
-					throw new RuntimeException("invalid request signature");
-				} else {
-					System.out.println("Ready to run test...");
-					this.controlUser = event.getUser();
-					this.pircBotX.sendMessage(channel, "STARTING");
-					this.certificateRepository.init(sameSerialNumber);
-					this.testResults.clear();
-					this.main.runTest(requestsPerSecond, maxWorkers,
-							totalTimeMillis, this.certificateRepository, null,
-							this);
-				}
+
+				checkSignature(toBeSigned, actualSignature, event.getUser());
+
+				System.out.println("Ready to run test...");
+				this.controlUser = event.getUser();
+				this.pircBotX.sendMessage(channel, "STARTING");
+				this.certificateRepository.init(sameSerialNumber);
+				this.testResults.clear();
+				this.main
+						.runTest(requestsPerSecond, maxWorkers,
+								totalTimeMillis, this.certificateRepository,
+								null, this);
 			} else if (message.startsWith("KILL ")) {
 				Scanner scanner = new Scanner(message);
 				scanner.useDelimiter(" ");
 				scanner.next();
 				String nonce = scanner.next();
-				if (this.usedNonces.contains(nonce)) {
-					throw new RuntimeException("nonce already user");
-				}
-				this.usedNonces.add(nonce);
-				String signature = scanner.next();
+
+				checkNonce(nonce);
+
+				String actualSignature = scanner.next();
 				String toBeSigned = "KILL " + nonce;
-				Mac mac = Mac.getInstance("HmacSHA1");
-				Key key = new SecretKeySpec(this.secret.getBytes(), 0,
-						this.secret.getBytes().length, "HmacSHA1");
-				mac.init(key);
-				byte[] signatureData = mac.doFinal(toBeSigned.getBytes());
-				String expectedSignature = new String(Hex.encode(signatureData));
-				if (false == signature.equals(expectedSignature)) {
-					throw new RuntimeException("invalid request signature");
-				} else {
-					System.out.println("VALID SUICIDE MESSAGE RECEIVED!");
-					this.pircBotX.sendMessage(channel, "SUICIDE");
-					// TODO: more gentle way to stop?
-					System.exit(1);
-				}
+				checkSignature(toBeSigned, actualSignature, event.getUser());
+
+				System.out.println("VALID SUICIDE MESSAGE RECEIVED!");
+				this.pircBotX.sendMessage(channel, "SUICIDE");
+				// TODO: more gentle way to stop?
+				System.exit(1);
 			} else if (message.startsWith("GET_RESULTS")) {
+				Scanner scanner = new Scanner(message);
+				scanner.useDelimiter(" ");
+				scanner.next();
+				String nonce = scanner.next();
+
+				checkNonce(nonce);
+
+				String actualSignature = scanner.next();
+				String toBeSigned = "GET_RESULTS " + nonce;
+				checkSignature(toBeSigned, actualSignature, event.getUser());
+
 				File tmpFile = File.createTempFile("ocsp-perf-test-result-",
 						".txt");
 				tmpFile.deleteOnExit();
 				FileOutputStream fileOutputStream = new FileOutputStream(
 						tmpFile);
-				HMac hMac = new HMac(new SHA1Digest());
-				hMac.init(new KeyParameter(this.secret.getBytes()));
+				HMac hMac = getHMac();
 				MacOutputStream macOutputStream = new MacOutputStream(
 						fileOutputStream, hMac);
 				PrintWriter printWriter = new PrintWriter(macOutputStream);
@@ -240,5 +186,6 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 		this.testResults.add(testResult);
 		// pircbot is queing, so minimal impact on timer here
 		this.pircBotX.sendMessage(this.controlUser, message);
+		// IRC server might be throttling this, so don't rely on it
 	}
 }
