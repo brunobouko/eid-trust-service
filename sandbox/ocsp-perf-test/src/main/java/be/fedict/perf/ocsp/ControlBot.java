@@ -18,7 +18,11 @@
 
 package be.fedict.perf.ocsp;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.security.Key;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -29,10 +33,20 @@ import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.output.NullOutputStream;
+import org.bouncycastle.crypto.digests.SHA1Digest;
+import org.bouncycastle.crypto.io.MacInputStream;
+import org.bouncycastle.crypto.macs.HMac;
+import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.util.encoders.Hex;
+import org.pircbotx.DccChat;
+import org.pircbotx.DccFileTransfer;
 import org.pircbotx.PircBotX;
 import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.ConnectEvent;
+import org.pircbotx.hooks.events.IncomingChatRequestEvent;
+import org.pircbotx.hooks.events.IncomingFileTransferEvent;
 import org.pircbotx.hooks.events.JoinEvent;
 import org.pircbotx.hooks.events.MessageEvent;
 import org.pircbotx.hooks.events.NoticeEvent;
@@ -49,17 +63,20 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 
 	private final Map<String, TestResult[]> testResults;
 
+	private final Map<String, File> receivedFiles;
+
 	private final PircBotX pircBotX;
 
 	public ControlBot(String secret) throws Exception {
 		this.secret = secret;
 		this.usedNonces = new HashSet<String>();
 		this.testResults = new HashMap<String, TestResult[]>();
+		this.receivedFiles = new HashMap<String, File>();
 
 		String name = "ctrl-" + UUID.randomUUID().toString();
 		System.out.println("bot name: " + name);
 		this.pircBotX = new PircBotX();
-		//this.pircBotX.setVerbose(true);
+		// this.pircBotX.setVerbose(true);
 		this.pircBotX.setName(name);
 		this.pircBotX.getListenerManager().addListener(this);
 		this.pircBotX.connect(Main.IRC_SERVER);
@@ -135,13 +152,76 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 				int workerCount = scanner.nextInt();
 				int currentRequestCount = scanner.nextInt();
 				int currentRequestMillis = scanner.nextInt();
-				TestResult[] botTestResults = this.testResults.get(sender);
-				botTestResults[intervalCount] = new TestResult(workerCount,
-						currentRequestCount, currentRequestMillis);
+				// cannot rely on this result because of IRC server throttling
+				// TestResult[] botTestResults = this.testResults.get(sender);
+				// botTestResults[intervalCount] = new TestResult(workerCount,
+				// currentRequestCount, currentRequestMillis);
 			}
 		} catch (Exception e) {
 			System.err.println("Error: " + e.getMessage());
 			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public void onIncomingFileTransfer(IncomingFileTransferEvent<PircBotX> event)
+			throws Exception {
+		DccFileTransfer dccFileTransfer = event.getTransfer();
+		String nick = dccFileTransfer.getUser().getNick();
+		System.out.println("Incoming file transfer from: " + nick);
+		File tmpFile = File.createTempFile("ocsp-perf-test-result-", ".txt");
+		tmpFile.deleteOnExit();
+		dccFileTransfer.receive(tmpFile, true);
+		System.out.println("File received from: " + nick);
+		System.out.println("Temporary file: " + tmpFile.getAbsolutePath());
+		this.receivedFiles.put(nick, tmpFile);
+	}
+
+	@Override
+	public void onIncomingChatRequest(IncomingChatRequestEvent<PircBotX> event)
+			throws Exception {
+		DccChat dccChat = event.getChat();
+		dccChat.accept();
+		String nick = dccChat.getUser().getNick();
+		String message = dccChat.readLine();
+		System.out.println(nick + ": " + message);
+		if (message.startsWith("RESULTS_INTEGRITY")) {
+			Scanner scanner = new Scanner(message);
+			scanner.useDelimiter(" ");
+			scanner.next();
+			String actualSignature = scanner.next();
+			File receivedFile = this.receivedFiles.get(nick);
+			FileInputStream fileInputStream = new FileInputStream(receivedFile);
+			HMac hMac = new HMac(new SHA1Digest());
+			hMac.init(new KeyParameter(this.secret.getBytes()));
+			MacInputStream macInputStream = new MacInputStream(fileInputStream,
+					hMac);
+			NullOutputStream nullOutputStream = new NullOutputStream();
+			IOUtils.copy(macInputStream, nullOutputStream);
+			macInputStream.close();
+			byte[] expectedSignature = new byte[20];
+			macInputStream.getMac().doFinal(expectedSignature, 0);
+			if (false == Arrays.equals(expectedSignature,
+					Hex.decode(actualSignature))) {
+				System.err.println("invalid file signature");
+			} else {
+				System.out.println("File signature valid: "
+						+ receivedFile.getAbsolutePath());
+				TestResult[] botTestResults = this.testResults.get(nick);
+				InputStream resultInputStream = new FileInputStream(
+						receivedFile);
+				Scanner resultScanner = new Scanner(resultInputStream);
+				resultScanner.useDelimiter(",|\n");
+				while (resultScanner.hasNextLine()) {
+					int idx = resultScanner.nextInt();
+					int workerCount = resultScanner.nextInt();
+					int currentRequestCount = resultScanner.nextInt();
+					int currentRequestMillis = resultScanner.nextInt();
+					TestResult testResult = new TestResult(workerCount,
+							currentRequestCount, currentRequestMillis);
+					botTestResults[idx] = testResult;
+				}
+			}
 		}
 	}
 
@@ -162,6 +242,10 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 			TestResult[] botTestResults = new TestResult[(int) totalTimeMillis / 1000 + 1];
 			this.testResults.put(trustedBot, botTestResults);
 		}
+		for (File receivedFile : this.receivedFiles.values()) {
+			receivedFile.delete();
+		}
+		this.receivedFiles.clear();
 
 		String nonce = UUID.randomUUID().toString();
 		String message = "TEST " + requestsPerSecond + " " + maxWorkers + " "
@@ -186,5 +270,9 @@ public class ControlBot extends ListenerAdapter<PircBotX> {
 		String signature = new String(Hex.encode(signatureData));
 		this.pircBotX.sendMessage(Main.IRC_CHANNEL, toBeSigned + " "
 				+ signature);
+	}
+
+	public void retrieveTestResults() {
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, "GET_RESULTS");
 	}
 }

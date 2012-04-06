@@ -18,6 +18,9 @@
 		<name>FedICT</name>
 		<url>http://www.fedict.belgium.be/</url>
 	</organization>
+	<scm>
+		<developerConnection>scm:svn:https://eid-trust-service.googlecode.com/svn/sandbox/ocsp-perf-test</developerConnection>
+	</scm>
 	<dependencies>
 		<dependency>
 			<groupId>commons-logging</groupId>
@@ -34,6 +37,10 @@
 		<dependency>
 			<groupId>org.pircbotx</groupId>
 			<artifactId>pircbotx</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
@@ -77,7 +84,7 @@
 			<dependency>
 				<groupId>commons-io</groupId>
 				<artifactId>commons-io</artifactId>
-				<version>1.4</version>
+				<version>2.2</version>
 			</dependency>
 			<dependency>
 				<groupId>commons-codec</groupId>
@@ -155,6 +162,13 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-release-plugin</artifactId>
+				<configuration>
+					<tagBase>https://eid-trust-service.googlecode.com/svn/tags/</tagBase>
+				</configuration>
+			</plugin>
 		</plugins>
 		<pluginManagement>
 			<plugins>
@@ -173,9 +187,28 @@
 					<artifactId>onejar-maven-plugin</artifactId>
 					<version>1.4.4</version>
 				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-release-plugin</artifactId>
+					<version>2.2.2</version>
+				</plugin>
 			</plugins>
 		</pluginManagement>
+		<extensions>
+			<extension>
+				<groupId>org.apache.maven.wagon</groupId>
+				<artifactId>wagon-ssh</artifactId>
+				<version>2.2</version>
+			</extension>
+		</extensions>
 	</build>
+	<distributionManagement>
+		<repository>
+			<id>e-contract-deploy</id>
+			<url>scp://e-contract.be/maven2</url>
+			<uniqueVersion>false</uniqueVersion>
+		</repository>
+	</distributionManagement>
 	<pluginRepositories>
 		<pluginRepository>
 			<id>onejar-maven-plugin.googlecode.com</id>

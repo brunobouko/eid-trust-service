@@ -18,9 +18,14 @@
 
 package be.fedict.perf.ocsp;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
 import java.security.Key;
 import java.security.Security;
 import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.UUID;
@@ -28,9 +33,14 @@ import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.bouncycastle.crypto.digests.SHA1Digest;
+import org.bouncycastle.crypto.io.MacOutputStream;
+import org.bouncycastle.crypto.macs.HMac;
+import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.encoders.Hex;
 import org.pircbotx.Channel;
+import org.pircbotx.DccChat;
 import org.pircbotx.PircBotX;
 import org.pircbotx.User;
 import org.pircbotx.hooks.ListenerAdapter;
@@ -53,6 +63,8 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 
 	private User controlUser;
 
+	private final List<TestResult> testResults;
+
 	public ClientBot(String secret, Main main) throws Exception {
 		this.secret = secret;
 		this.main = main;
@@ -60,7 +72,7 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 		String name = "bt-" + UUID.randomUUID().toString();
 		System.out.println("bot name: " + name);
 		this.pircBotX = new PircBotX();
-		//this.pircBotX.setVerbose(true);
+		// this.pircBotX.setVerbose(true);
 		this.pircBotX.setName(name);
 		this.pircBotX.connect(Main.IRC_SERVER);
 		this.pircBotX.joinChannel(Main.IRC_CHANNEL);
@@ -70,13 +82,14 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 			Security.addProvider(new BouncyCastleProvider());
 		}
 		this.certificateRepository = new CertificateRepository();
+		this.testResults = new LinkedList<TestResult>();
 	}
 
 	@Override
 	public void onConnect(ConnectEvent<PircBotX> event) throws Exception {
 		System.out.println("Connected to IRC");
 	}
-	
+
 	@Override
 	public void onNotice(NoticeEvent<PircBotX> event) throws Exception {
 		String notice = event.getNotice();
@@ -146,6 +159,7 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 					this.controlUser = event.getUser();
 					this.pircBotX.sendMessage(channel, "STARTING");
 					this.certificateRepository.init(sameSerialNumber);
+					this.testResults.clear();
 					this.main.runTest(requestsPerSecond, maxWorkers,
 							totalTimeMillis, this.certificateRepository, null,
 							this);
@@ -172,8 +186,38 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 				} else {
 					System.out.println("VALID SUICIDE MESSAGE RECEIVED!");
 					this.pircBotX.sendMessage(channel, "SUICIDE");
+					// TODO: more gentle way to stop?
 					System.exit(1);
 				}
+			} else if (message.startsWith("GET_RESULTS")) {
+				File tmpFile = File.createTempFile("ocsp-perf-test-result-",
+						".txt");
+				tmpFile.deleteOnExit();
+				FileOutputStream fileOutputStream = new FileOutputStream(
+						tmpFile);
+				HMac hMac = new HMac(new SHA1Digest());
+				hMac.init(new KeyParameter(this.secret.getBytes()));
+				MacOutputStream macOutputStream = new MacOutputStream(
+						fileOutputStream, hMac);
+				PrintWriter printWriter = new PrintWriter(macOutputStream);
+				int idx = 0;
+				for (TestResult testResult : this.testResults) {
+					printWriter.println(idx + "," + testResult.getWorkerCount()
+							+ "," + testResult.getCurrentRequestCount() + ","
+							+ testResult.getCurrentRequestMillis());
+					idx++;
+				}
+				printWriter.close();
+				byte[] signatureData = new byte[20];
+				macOutputStream.getMac().doFinal(signatureData, 0);
+				String signature = new String(Hex.encode(signatureData));
+
+				this.pircBotX.dccSendFile(tmpFile, event.getUser(),
+						1000 * 60 * 2);
+				tmpFile.delete();
+				DccChat dccChat = this.pircBotX.dccSendChatRequest(
+						event.getUser(), 1000 * 10);
+				dccChat.sendLine("RESULTS_INTEGRITY " + signature);
 			}
 		} catch (Exception e) {
 			System.err.println("Error: " + e.getMessage());
@@ -191,6 +235,9 @@ public class ClientBot extends ListenerAdapter<PircBotX> implements
 			int currentRequestCount, int currentRequestMillis) {
 		String message = "RESULT " + intervalCounter + " " + workerCount + " "
 				+ currentRequestCount + " " + currentRequestMillis;
+		TestResult testResult = new TestResult(workerCount,
+				currentRequestCount, currentRequestMillis);
+		this.testResults.add(testResult);
 		// pircbot is queing, so minimal impact on timer here
 		this.pircBotX.sendMessage(this.controlUser, message);
 	}

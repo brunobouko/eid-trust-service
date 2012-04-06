@@ -19,7 +19,9 @@
 package be.fedict.perf.ocsp;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.security.Security;
 import java.util.Date;
 import java.util.Map;
@@ -79,17 +81,57 @@ public class Main implements WorkListener {
 				controlBot.runTest(requestsPerSecond, maxWorkers,
 						totalTimeMillis, sameSerialNumber);
 				break;
-			case 'p':
-				System.out.println("Test results");
+			case 's':
+				System.out.println("Save results");
+				System.out.print("Filename: ");
+				String filename = getKeyboardString();
+
 				Map<String, TestResult[]> testResults = controlBot
 						.getTestResults();
+				int size = Integer.MAX_VALUE;
+				TestResult[][] testResultsBots = new TestResult[testResults
+						.keySet().size()][];
+				int idx = 0;
 				for (String trustedBot : testResults.keySet()) {
-					// TODO
+					TestResult[] botTestResults = testResults.get(trustedBot);
+					int currentSize = botTestResults.length;
+					if (size > currentSize) {
+						size = currentSize;
+					}
+					testResultsBots[idx++] = botTestResults;
 				}
+				if (size == Integer.MAX_VALUE) {
+					size = 0;
+				}
+				int[] requestCounts = new int[size];
+				int[] requestMillis = new int[size];
+				for (int testIdx = 0; testIdx < size; testIdx++) {
+					for (int botIdx = 0; botIdx < testResultsBots.length; botIdx++) {
+						requestCounts[testIdx] += testResultsBots[botIdx][testIdx]
+								.getCurrentRequestCount();
+						requestMillis[testIdx] += testResultsBots[botIdx][testIdx]
+								.getCurrentRequestMillis();
+					}
+				}
+				File file = new File(filename);
+				PrintWriter printWriter = new PrintWriter(file);
+				for (int testIdx = 0; testIdx < size; testIdx++) {
+					String line = testIdx + "," + requestCounts[testIdx] + ","
+							+ requestMillis[testIdx];
+					System.out.println(line);
+					printWriter.println(line);
+				}
+				printWriter.close();
+				System.out.println("Result written to file: "
+						+ file.getAbsolutePath());
 				break;
 			case 'k':
 				System.out.println("Kill all bots");
 				controlBot.killAllBots();
+				break;
+			case 'g':
+				System.out.println("Get test results");
+				controlBot.retrieveTestResults();
 				break;
 			}
 		} while (commandChar != 'e');
@@ -100,9 +142,20 @@ public class Main implements WorkListener {
 		System.out.println("Menu");
 		System.out.println("l. List bots");
 		System.out.println("r. Run test");
-		System.out.println("p. Print test results");
+		System.out.println("g. Get test results");
+		System.out.println("s. Save test results");
 		System.out.println("k. Kill all bots");
 		System.out.println("e. Exit");
+	}
+
+	private String getKeyboardString() throws Exception {
+		BufferedReader bufferedReader = new BufferedReader(
+				new InputStreamReader(System.in));
+		String line;
+		do {
+			line = bufferedReader.readLine();
+		} while (line.length() < 1);
+		return line;
 	}
 
 	private char getKeyboardChar() throws Exception {
