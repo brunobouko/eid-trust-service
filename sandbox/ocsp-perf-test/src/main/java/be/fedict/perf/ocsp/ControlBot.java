@@ -175,6 +175,9 @@ public class ControlBot extends AbstractBot {
 	public void runTest(int requestsPerSecond, int maxWorkers,
 			long totalTimeMillis, boolean sameSerialNumber) throws Exception {
 		// reset test results
+		if (this.testResults.isEmpty()) {
+			System.err.println("No trusted bots available.");
+		}
 		for (String trustedBot : this.testResults.keySet()) {
 			TestResult[] botTestResults = new TestResult[(int) totalTimeMillis / 1000 + 1];
 			this.testResults.put(trustedBot, botTestResults);
@@ -204,6 +207,7 @@ public class ControlBot extends AbstractBot {
 		String nonce = UUID.randomUUID().toString();
 		String toBeSigned = "GET_RESULTS " + nonce;
 		String signature = sign(toBeSigned);
-		this.pircBotX.sendMessage(Main.IRC_CHANNEL, toBeSigned + signature);
+		this.pircBotX.sendMessage(Main.IRC_CHANNEL, toBeSigned + " "
+				+ signature);
 	}
 }

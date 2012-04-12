@@ -48,7 +48,7 @@ public abstract class AbstractBot extends ListenerAdapter<PircBotX> {
 		this.secret = secret;
 		this.usedNonces = new HashSet<String>();
 		this.pircBotX = new PircBotX();
-		// this.pircBotX.setVerbose(true);
+		//this.pircBotX.setVerbose(true);
 		String name = namePrefix + "-" + UUID.randomUUID().toString();
 		System.out.println("bot name: " + name);
 		this.pircBotX.setName(name);

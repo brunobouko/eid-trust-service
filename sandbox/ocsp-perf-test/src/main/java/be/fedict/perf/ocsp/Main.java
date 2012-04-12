@@ -39,8 +39,7 @@ public class Main implements WorkListener {
 
 	public Main(String[] args) throws Exception {
 		System.out.println("OCSP Performance Test.");
-		if (args.length >= 2) {
-			this.secret = args[1];
+		if (args.length >= 1) {
 			if ("bot".equals(args[0])) {
 				bot();
 			} else if ("control".equals(args[0])) {
@@ -53,13 +52,20 @@ public class Main implements WorkListener {
 		}
 	}
 
+	private void setSecret() throws Exception {
+		System.out.print("Botnet secret: ");
+		this.secret = getKeyboardString();
+	}
+
 	private void bot() throws Exception {
 		System.out.println("Bot mode...");
+		setSecret();
 		new ClientBot(this.secret, this);
 	}
 
 	private void control() throws Exception {
 		System.out.println("Control mode...");
+		setSecret();
 		ControlBot controlBot = new ControlBot(this.secret);
 		char commandChar;
 		do {
