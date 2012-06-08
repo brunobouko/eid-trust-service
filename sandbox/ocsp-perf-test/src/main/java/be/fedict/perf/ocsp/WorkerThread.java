@@ -34,17 +34,27 @@ import org.bouncycastle.ocsp.OCSPResp;
 
 public class WorkerThread extends Thread {
 
+	public static final String DEFAULT_OCSP_URL = "http://ocsp.eid.belgium.be";
+
 	private final ManagerTimerTask manager;
 
 	private final NetworkConfig networkConfig;
 
 	private final HttpClient httpClient;
 
+	private final String ocspUrl;
+
 	public WorkerThread(ThreadGroup threadGroup, int workerIdx,
-			ManagerTimerTask manager, NetworkConfig networkConfig) {
+			ManagerTimerTask manager, NetworkConfig networkConfig,
+			String ocspUrl) {
 		super(threadGroup, "worker-thread-" + workerIdx);
 		this.manager = manager;
 		this.networkConfig = networkConfig;
+		if (null != ocspUrl) {
+			this.ocspUrl = ocspUrl;
+		} else {
+			this.ocspUrl = DEFAULT_OCSP_URL;
+		}
 		this.httpClient = new DefaultHttpClient();
 		if (null != this.networkConfig) {
 			HttpHost proxy = new HttpHost(this.networkConfig.getProxyHost(),
@@ -57,7 +67,8 @@ public class WorkerThread extends Thread {
 	@Override
 	public void run() {
 		try {
-			HttpPost httpPost = new HttpPost("http://ocsp.eid.belgium.be");
+			HttpPost httpPost = new HttpPost(this.ocspUrl);
+			httpPost.setHeader("content-type", "application/ocsp-request");
 			ByteArrayEntity ocspReqHttpEntity = this.manager.getOCSPRequest();
 			while (true) {
 				httpPost.setEntity(ocspReqHttpEntity);

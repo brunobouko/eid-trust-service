@@ -105,10 +105,9 @@ public class ClientBot extends AbstractBot implements WorkListener {
 				this.pircBotX.sendMessage(channel, "STARTING");
 				this.certificateRepository.init(sameSerialNumber);
 				this.testResults.clear();
-				this.main
-						.runTest(requestsPerSecond, maxWorkers,
-								totalTimeMillis, this.certificateRepository,
-								null, this);
+				this.main.runTest(requestsPerSecond, maxWorkers,
+						totalTimeMillis, this.certificateRepository, null,
+						null, this);
 			} else if (message.startsWith("KILL ")) {
 				Scanner scanner = new Scanner(message);
 				scanner.useDelimiter(" ");

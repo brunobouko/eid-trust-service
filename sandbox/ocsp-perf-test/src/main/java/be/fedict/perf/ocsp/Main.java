@@ -211,11 +211,22 @@ public class Main implements WorkListener {
 		long totalTimeMillis = Integer.parseInt(args[2]) * 1000;
 		boolean sameSerialNumber = Boolean.parseBoolean(args[3]);
 		NetworkConfig networkConfig;
-		if (args.length >= 6) {
+		String ocspUrl;
+		if (args.length >= 7) {
+			ocspUrl = args[4];
+			String proxyHost = args[5];
+			int proxyPort = Integer.parseInt(args[6]);
+			networkConfig = new NetworkConfig(proxyHost, proxyPort);
+		} else if (args.length == 6) {
+			ocspUrl = null;
 			String proxyHost = args[4];
 			int proxyPort = Integer.parseInt(args[5]);
 			networkConfig = new NetworkConfig(proxyHost, proxyPort);
+		} else if (args.length == 5) {
+			ocspUrl = args[4];
+			networkConfig = null;
 		} else {
+			ocspUrl = null;
 			networkConfig = null;
 		}
 
@@ -254,24 +265,25 @@ public class Main implements WorkListener {
 				/ runtime.maxMemory() * 100 + " %");
 
 		runTest(requestsPerSecond, maxWorkers, totalTimeMillis,
-				certificateRepository, networkConfig, this);
+				certificateRepository, networkConfig, ocspUrl, this);
 	}
 
 	public void runTest(int requestsPerSecond, int maxWorkers,
 			long totalTimeMillis, CertificateRepository certificateRepository,
-			NetworkConfig networkConfig, WorkListener workListener) {
+			NetworkConfig networkConfig, String ocspUrl,
+			WorkListener workListener) {
 		System.out.println("Starting tests at: " + new Date());
 		Timer timer = new Timer("manager-timer-task");
 		ManagerTimerTask managerTimerTask = new ManagerTimerTask(timer,
 				requestsPerSecond, maxWorkers, totalTimeMillis,
-				certificateRepository, networkConfig);
+				certificateRepository, networkConfig, ocspUrl);
 		managerTimerTask.registerWorkListener(workListener);
 		timer.scheduleAtFixedRate(managerTimerTask, new Date(), 1000);
 	}
 
 	private void usage() {
 		System.err
-				.println("Usage: java <program> <req/sec> <max workers> <total time> <same serial number> [proxy host] [proxy port]");
+				.println("Usage: java <program> <req/sec> <max workers> <total time> <same serial number> [OCSP URL] [[proxy host] [proxy port]]");
 		System.err
 				.println("Example: 10 5 60 false => 10 per second, 5 workers at max, during 60 seconds, use full database");
 		System.err

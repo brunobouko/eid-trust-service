@@ -55,9 +55,11 @@ public class ManagerTimerTask extends TimerTask {
 
 	private final Timer timer;
 
+	private final String ocspUrl;
+
 	public ManagerTimerTask(Timer timer, int requestsPerSecond, int maxWorkers,
 			long totalTimeMillis, CertificateRepository certificateRepository,
-			NetworkConfig networkConfig) {
+			NetworkConfig networkConfig, String ocspUrl) {
 		this.timer = timer;
 		this.requestsPerSecond = requestsPerSecond;
 		this.maxWorkers = maxWorkers;
@@ -65,6 +67,7 @@ public class ManagerTimerTask extends TimerTask {
 		this.endTimeMillis = beginTimeMillis + totalTimeMillis;
 		this.certificateRepository = certificateRepository;
 		this.networkConfig = networkConfig;
+		this.ocspUrl = ocspUrl;
 		System.out.println("INTERVAL, WORKER COUNT, REQUEST COUNT, AVERAGE DT");
 		System.out.println("-------------------------------------------------");
 		this.workerThreads = new LinkedList<WorkerThread>();
@@ -130,7 +133,7 @@ public class ManagerTimerTask extends TimerTask {
 			if (this.workerCount < this.maxWorkers) {
 				WorkerThread workerThread = new WorkerThread(
 						this.workerThreadGroup, this.workerCount, this,
-						this.networkConfig);
+						this.networkConfig, this.ocspUrl);
 				workerThread.start();
 				this.workerThreads.add(workerThread);
 				this.workerCount++;
